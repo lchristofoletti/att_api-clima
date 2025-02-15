@@ -25,4 +25,4 @@ jobs:
         shell: bash
       
       - name: Executar script
-        run: python seu_script.py
+        run: python api_clima.py
