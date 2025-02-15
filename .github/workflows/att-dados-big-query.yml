@@ -19,5 +19,9 @@ jobs:
       - name: Instalar dependências
         run: pip install requests pandas google-cloud-bigquery
 
+      - name: Criar credenciais.json
+        run: echo "$BIGQUERY_CREDENTIALS" > credenciais.json
+        shell: bash
+      
       - name: Executar script
-        run: python api_clima.py  # arquivo com codigo python
+        run: python seu_script.py
