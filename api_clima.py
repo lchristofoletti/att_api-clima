@@ -11,23 +11,19 @@ import requests
 import pandas as pd
 from google.cloud import bigquery
 from google.api_core.exceptions import NotFound
-import json
 import os
 
 credenciais_path = "credenciais.json"
 
-# Verifica se o arquivo realmente existe antes de tentar usá-lo
 if not os.path.exists(credenciais_path):
     raise FileNotFoundError(f"Arquivo de credenciais não encontrado: {credenciais_path}")
 
 client = bigquery.Client.from_service_account_json(credenciais_path)
 
-# Definições do projeto e tabela
 project_id = "portifolio-luiz-christofoletti"
 dataset_id = "API_CLIMA"
 table_id = "tb_cidades"
 
-# Lista das 20 maiores cidades do mundo
 cities = [
     "Tokyo", "Delhi", "Shanghai", "São Paulo", "Mexico City",
     "Cairo", "Mumbai", "Beijing", "Dhaka", "Osaka",
@@ -35,10 +31,8 @@ cities = [
     "Kolkata", "Lagos", "Kinshasa", "Manila", "Rio de Janeiro"
 ]
 
-# Chave da API do OpenWeatherMap
 api_key = "80a4c13cb39fcaacf74e25b5e7d4cb0a"
 
-# Lista para armazenar os dados
 weather_data_list = []
 
 for city_name in cities:
@@ -49,21 +43,27 @@ for city_name in cities:
         data = response.json()
         weather_data = {
             "city": data["name"],
+            "latitude": data["coord"]["lat"],
+            "longitude": data["coord"]["lon"],
             "temperature": data["main"]["temp"],
+            "feels_like": data["main"]["feels_like"],
+            "pressure": data["main"]["pressure"],
             "humidity": data["main"]["humidity"],
-            "wind_speed": data["wind"]["speed"],
-            "weather_condition": data["weather"][0]["description"],
+            "visibility": data.get("visibility", None),
+            "wind_speed": data["wind"].get("speed", None),
+            "wind_deg": data["wind"].get("deg", None),
+            "cloudiness": data["clouds"].get("all", None),
+            "weather_main": data["weather"][0]["main"],
+            "weather_description": data["weather"][0]["description"],
             "timestamp": pd.to_datetime(data["dt"], unit='s')
         }
         weather_data_list.append(weather_data)
     else:
         print(f"Erro ao obter dados para {city_name}: {response.status_code}")
 
-# Criar DataFrame
 if weather_data_list:
     df = pd.DataFrame(weather_data_list)
 
-    # Verificar se o dataset existe
     dataset_ref = client.dataset(dataset_id)
     try:
         client.get_dataset(dataset_ref)
@@ -75,7 +75,6 @@ if weather_data_list:
         client.create_dataset(dataset)
         print(f"Dataset {dataset_id} criado com sucesso.")
 
-    # Verificar se a tabela existe
     table_ref = dataset_ref.table(table_id)
     try:
         client.get_table(table_ref)
@@ -84,17 +83,24 @@ if weather_data_list:
         print(f"Tabela {table_id} não encontrada. Criando...")
         schema = [
             bigquery.SchemaField("city", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("latitude", "FLOAT", mode="NULLABLE"),
+            bigquery.SchemaField("longitude", "FLOAT", mode="NULLABLE"),
             bigquery.SchemaField("temperature", "FLOAT", mode="REQUIRED"),
-            bigquery.SchemaField("humidity", "FLOAT", mode="REQUIRED"),
-            bigquery.SchemaField("wind_speed", "FLOAT", mode="REQUIRED"),
-            bigquery.SchemaField("weather_condition", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("feels_like", "FLOAT", mode="NULLABLE"),
+            bigquery.SchemaField("pressure", "INTEGER", mode="NULLABLE"),
+            bigquery.SchemaField("humidity", "INTEGER", mode="REQUIRED"),
+            bigquery.SchemaField("visibility", "INTEGER", mode="NULLABLE"),
+            bigquery.SchemaField("wind_speed", "FLOAT", mode="NULLABLE"),
+            bigquery.SchemaField("wind_deg", "INTEGER", mode="NULLABLE"),
+            bigquery.SchemaField("cloudiness", "INTEGER", mode="NULLABLE"),
+            bigquery.SchemaField("weather_main", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("weather_description", "STRING", mode="REQUIRED"),
             bigquery.SchemaField("timestamp", "TIMESTAMP", mode="REQUIRED")
         ]
         table = bigquery.Table(table_ref, schema=schema)
         client.create_table(table)
         print(f"Tabela {table_id} criada com sucesso.")
 
-    # Carregar os dados na tabela (sobrescrevendo a tabela inteira)
     job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE)
     job = client.load_table_from_dataframe(df, table_ref, job_config=job_config)
     job.result()
