@@ -12,11 +12,14 @@ import pandas as pd
 from google.cloud import bigquery
 from google.api_core.exceptions import NotFound
 import json
+import os
 
-# Definir o caminho do arquivo de credenciais
-credenciais_path = "/credenciais.json"
+credenciais_path = "credenciais.json"
 
-# Configurar o cliente BigQuery
+# Verifica se o arquivo realmente existe antes de tentar usá-lo
+if not os.path.exists(credenciais_path):
+    raise FileNotFoundError(f"Arquivo de credenciais não encontrado: {credenciais_path}")
+
 client = bigquery.Client.from_service_account_json(credenciais_path)
 
 # Definições do projeto e tabela
